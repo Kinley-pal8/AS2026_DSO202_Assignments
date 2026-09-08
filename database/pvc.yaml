@@ -1,0 +1,19 @@
+# Task 3 -- persistent storage for the database (LO 4).
+# No storageClassName is set, so the cluster's DEFAULT StorageClass is used.
+# On kind that is `standard` (rancher.io/local-path), which dynamically
+# provisions a hostPath-backed volume. Confirm with:
+#   kubectl get storageclass
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: db-data
+  namespace: dso202-assignment-01
+  labels:
+    app: task-tracker
+    tier: database
+spec:
+  accessModes:
+    - ReadWriteOnce        # a single postgres Pod writes this volume
+  resources:
+    requests:
+      storage: 1Gi

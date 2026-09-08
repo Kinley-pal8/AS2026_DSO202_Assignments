@@ -1,0 +1,6 @@
+# macOS archive cruft that shipped inside the handout zip
+__MACOSX/
+.DS_Store
+
+# local kube/PF scratch
+*.kubeconfig

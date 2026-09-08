@@ -1,0 +1,26 @@
+# Task 2 -- all NON-sensitive configuration.
+# Note the deliberate variable-name mismatch called out in the brief:
+#   * the backend reads DB_HOST / DB_PORT / DB_NAME
+#   * the postgres image reads POSTGRES_DB
+# Both are kept here with matching values so neither tier is misconfigured.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: task-tracker-config
+  namespace: dso202-assignment-01
+  labels:
+    app: task-tracker
+data:
+  # ---- consumed by the backend ----
+  DB_HOST: "db"          # the database's headless Service name (same namespace)
+  DB_PORT: "5432"
+  DB_NAME: "taskdb"
+  APP_PORT: "8080"
+  CORS_ORIGIN: "*"       # classroom default; a real deployment would pin origins
+  # ---- consumed by the postgres container ----
+  POSTGRES_DB: "taskdb"  # must equal DB_NAME
+  # ---- consumed by the frontend ----
+  # Backend Service cluster-internal address (Task 5). The frontend calls the
+  # backend from the browser, so this only resolves for clients inside the
+  # cluster network; see README "Known limitation".
+  BACKEND_URL: "http://backend.dso202-assignment-01.svc.cluster.local:8080"

@@ -1,0 +1,22 @@
+# Task 4 -- ClusterIP Service (the default type).
+# Reachable only from inside the cluster as
+#   backend.dso202-assignment-01.svc.cluster.local:8080
+# Never NodePort / LoadBalancer -- the backend must not be externally
+# reachable (non-negotiable constraint).
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: dso202-assignment-01
+  labels:
+    app: task-tracker
+    tier: backend
+spec:
+  type: ClusterIP
+  selector:
+    app: task-tracker
+    tier: backend
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

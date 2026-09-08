@@ -1,0 +1,24 @@
+### Task 8 bonus -- acting strictly as ServiceAccount 'viewer' (token-only kubeconfig)
+
+$ kubectl get pods                        # ALLOWED (Role: get/list/watch)
+NAME                       READY   STATUS    RESTARTS      AGE
+backend-6845cf4654-6r8nk   1/1     Running   1 (22s ago)   68s
+db-c57dcbf96-zxbwx         1/1     Running   0             22s
+frontend-5b7dbcfff-bzrbp   1/1     Running   0             11m
+
+$ kubectl get deploy                      # ALLOWED
+NAME       READY   UP-TO-DATE   AVAILABLE   AGE
+backend    1/1     1            1           26m
+db         1/1     1            1           26m
+frontend   1/1     1            1           26m
+
+$ kubectl delete pod --all                # DENIED (no 'delete' verb)
+Error from server (Forbidden): pods "backend-6845cf4654-6r8nk" is forbidden: User "system:serviceaccount:dso202-assignment-01:viewer" cannot delete resource "pods" in API group "" in the namespace "dso202-assignment-01"
+Error from server (Forbidden): pods "db-c57dcbf96-zxbwx" is forbidden: User "system:serviceaccount:dso202-assignment-01:viewer" cannot delete resource "pods" in API group "" in the namespace "dso202-assignment-01"
+Error from server (Forbidden): pods "frontend-5b7dbcfff-bzrbp" is forbidden: User "system:serviceaccount:dso202-assignment-01:viewer" cannot delete resource "pods" in API group "" in the namespace "dso202-assignment-01"
+
+$ kubectl get secret task-tracker-secret  # DENIED (secrets not in Role)
+Error from server (Forbidden): secrets "task-tracker-secret" is forbidden: User "system:serviceaccount:dso202-assignment-01:viewer" cannot get resource "secrets" in API group "" in the namespace "dso202-assignment-01"
+
+$ kubectl -n kube-system get pods         # DENIED (Role is namespaced)
+Error from server (Forbidden): pods is forbidden: User "system:serviceaccount:dso202-assignment-01:viewer" cannot list resource "pods" in API group "" in the namespace "kube-system"

@@ -1,0 +1,54 @@
+# Task 8 (BONUS, optional -- full RBAC mechanics are Unit II).
+# A read-only ServiceAccount scoped to THIS namespace only:
+#   * Role  -> the permissions (get/list/watch on the common read resources)
+#   * RoleBinding -> ties the Role to the ServiceAccount
+# A Role (not ClusterRole) + RoleBinding cannot grant anything outside
+# dso202-assignment-01, so this is genuine namespace-scoped least privilege.
+#
+# Try it:
+#   kubectl apply -f bonus/rbac.yaml
+#   TOKEN=$(kubectl -n dso202-assignment-01 create token viewer)
+#   kubectl --token="$TOKEN" -n dso202-assignment-01 get pods            # allowed
+#   kubectl --token="$TOKEN" -n dso202-assignment-01 delete pod --all    # Forbidden
+#   kubectl --token="$TOKEN" -n kube-system get pods                     # Forbidden
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: viewer
+  namespace: dso202-assignment-01
+  labels:
+    app: task-tracker
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: namespace-readonly
+  namespace: dso202-assignment-01
+  labels:
+    app: task-tracker
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "services", "configmaps", "persistentvolumeclaims", "events"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list", "watch"]
+# Note: Secrets are deliberately NOT in this Role -- a read-only viewer has
+# no business reading credentials.
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: viewer-namespace-readonly
+  namespace: dso202-assignment-01
+  labels:
+    app: task-tracker
+subjects:
+  - kind: ServiceAccount
+    name: viewer
+    namespace: dso202-assignment-01
+roleRef:
+  kind: Role
+  name: namespace-readonly
+  apiGroup: rbac.authorization.k8s.io

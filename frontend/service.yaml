@@ -1,0 +1,22 @@
+# Task 5 -- NodePort Service, the ONLY tier exposed outside the cluster.
+# nodePort 30080 matches the extraPortMappings entry in kind-cluster.yaml,
+# so the app is reachable at http://localhost:30080 on the host. Without
+# that mapping, use: kubectl -n dso202-assignment-01 port-forward svc/frontend 8080:8080
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: dso202-assignment-01
+  labels:
+    app: task-tracker
+    tier: frontend
+spec:
+  type: NodePort
+  selector:
+    app: task-tracker
+    tier: frontend
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      nodePort: 30080

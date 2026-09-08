@@ -1,0 +1,22 @@
+# Task 3 -- HEADLESS Service (clusterIP: None).
+# No cluster IP and no proxying: cluster DNS returns the Pod's own IP for
+# `db.dso202-assignment-01.svc.cluster.local`. That is all the backend
+# needs, and it keeps the database unreachable from outside the namespace
+# (no NodePort / LoadBalancer -- non-negotiable constraint).
+apiVersion: v1
+kind: Service
+metadata:
+  name: db
+  namespace: dso202-assignment-01
+  labels:
+    app: task-tracker
+    tier: database
+spec:
+  clusterIP: None
+  selector:
+    app: task-tracker
+    tier: database
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432

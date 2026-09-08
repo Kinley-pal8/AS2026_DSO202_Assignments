@@ -1,0 +1,46 @@
+# Task 5 -- frontend tier.
+# Consumes BACKEND_URL from the ConfigMap (the backend Service's
+# cluster-internal address). The entrypoint substitutes it into config.js
+# at Pod start.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: dso202-assignment-01
+  labels:
+    app: task-tracker
+    tier: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: task-tracker
+      tier: frontend
+  template:
+    metadata:
+      labels:
+        app: task-tracker
+        tier: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: sarojsanyasi/dso202-frontend:1.0
+          # See README "Image note": identical image built from ./images/frontend and
+          # preloaded via `kind load docker-image` on amd64 hosts.
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: BACKEND_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: task-tracker-config
+                  key: BACKEND_URL
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"

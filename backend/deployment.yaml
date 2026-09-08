@@ -1,0 +1,77 @@
+# Task 4 -- backend tier.
+# Consumes ONLY the DB_* keys. DB_HOST resolves to the database's headless
+# Service (its value in the ConfigMap is "db").
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: dso202-assignment-01
+  labels:
+    app: task-tracker
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: task-tracker
+      tier: backend
+  template:
+    metadata:
+      labels:
+        app: task-tracker
+        tier: backend
+    spec:
+      containers:
+        - name: backend
+          image: sarojsanyasi/dso202-backend:1.0
+          # See README "Image note": identical image built from ./images/backend and
+          # preloaded via `kind load docker-image` on amd64 hosts.
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            # non-sensitive -> ConfigMap
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: task-tracker-config
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: task-tracker-config
+                  key: DB_PORT
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: task-tracker-config
+                  key: DB_NAME
+            - name: APP_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: task-tracker-config
+                  key: APP_PORT
+            - name: CORS_ORIGIN
+              valueFrom:
+                configMapKeyRef:
+                  name: task-tracker-config
+                  key: CORS_ORIGIN
+            # credentials -> Secret
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: task-tracker-secret
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: task-tracker-secret
+                  key: DB_PASSWORD
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"

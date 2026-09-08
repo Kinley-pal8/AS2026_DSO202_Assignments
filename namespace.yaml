@@ -1,0 +1,10 @@
+# Task 1 -- one namespace for every resource in this assignment.
+# Namespace-based multi-tenancy (LO 5): all Task Tracker objects live here
+# and are governed by the ResourceQuota / LimitRange in quota.yaml.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dso202-assignment-01
+  labels:
+    app: task-tracker
+    purpose: dso202-assignment-01

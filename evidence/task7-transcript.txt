@@ -1,0 +1,158 @@
+
+============================================================
+CONTEXT: cluster / namespace / objects
+============================================================
+kind-dso202
+NAME                           READY   STATUS    RESTARTS      AGE     IP            NODE                   NOMINATED NODE   READINESS GATES
+pod/backend-6845cf4654-hsd56   1/1     Running   0             44s     10.244.0.11   dso202-control-plane   <none>           <none>
+pod/db-c57dcbf96-lkkd8         1/1     Running   0             48s     10.244.0.10   dso202-control-plane   <none>           <none>
+pod/frontend-5b7dbcfff-bzrbp   1/1     Running   1 (36m ago)   7h56m   10.244.0.5    dso202-control-plane   <none>           <none>
+
+NAME               TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)          AGE   SELECTOR
+service/backend    ClusterIP   10.96.22.244   <none>        8080/TCP         8h    app=task-tracker,tier=backend
+service/db         ClusterIP   None           <none>        5432/TCP         8h    app=task-tracker,tier=database
+service/frontend   NodePort    10.96.145.65   <none>        8080:30080/TCP   8h    app=task-tracker,tier=frontend
+
+NAME                       READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS   IMAGES                             SELECTOR
+deployment.apps/backend    1/1     1            1           8h    backend      sarojsanyasi/dso202-backend:1.0    app=task-tracker,tier=backend
+deployment.apps/db         1/1     1            1           8h    postgres     sarojsanyasi/dso202-db:1.0         app=task-tracker,tier=database
+deployment.apps/frontend   1/1     1            1           8h    frontend     sarojsanyasi/dso202-frontend:1.0   app=task-tracker,tier=frontend
+
+NAME                                 DESIRED   CURRENT   READY   AGE     CONTAINERS   IMAGES                             SELECTOR
+replicaset.apps/backend-6845cf4654   1         1         1       7h51m   backend      sarojsanyasi/dso202-backend:1.0    app=task-tracker,pod-template-hash=6845cf4654,tier=backend
+replicaset.apps/db-c57dcbf96         1         1         1       8h      postgres     sarojsanyasi/dso202-db:1.0         app=task-tracker,pod-template-hash=c57dcbf96,tier=database
+replicaset.apps/frontend-5b7dbcfff   1         1         1       8h      frontend     sarojsanyasi/dso202-frontend:1.0   app=task-tracker,pod-template-hash=5b7dbcfff,tier=frontend
+
+NAME                            STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE   VOLUMEMODE
+persistentvolumeclaim/db-data   Bound    pvc-70ca4c84-1794-493f-8f4b-a6a2e86f4728   1Gi        RWO            standard       <unset>                 48s   Filesystem
+
+NAME                            DATA   AGE
+configmap/kube-root-ca.crt      1      8h
+configmap/task-tracker-config   7      8h
+
+NAME                         TYPE     DATA   AGE
+secret/task-tracker-secret   Opaque   4      8h
+
+NAME                               REQUEST                                                                                     LIMIT                                           AGE
+resourcequota/task-tracker-quota   persistentvolumeclaims: 1/2, pods: 3/12, requests.cpu: 250m/1, requests.memory: 384Mi/1Gi   limits.cpu: 1200m/3, limits.memory: 896Mi/2Gi   8h
+
+NAME                             CREATED AT
+limitrange/task-tracker-limits   2026-09-08T07:56:08Z
+NAME                       READY   STATUS    RESTARTS      AGE     LABELS
+backend-6845cf4654-hsd56   1/1     Running   0             44s     app=task-tracker,pod-template-hash=6845cf4654,tier=backend
+db-c57dcbf96-lkkd8         1/1     Running   0             48s     app=task-tracker,pod-template-hash=c57dcbf96,tier=database
+frontend-5b7dbcfff-bzrbp   1/1     Running   1 (36m ago)   7h56m   app=task-tracker,pod-template-hash=5b7dbcfff,tier=frontend
+
+============================================================
+TASK 7b: Service DNS resolution from inside the frontend Pod
+============================================================
+# exec target: frontend-5b7dbcfff-bzrbp
+$ nslookup backend.dso202-assignment-01.svc.cluster.local
+Server:		10.96.0.10
+Address:	10.96.0.10:53
+
+Name:	backend.dso202-assignment-01.svc.cluster.local
+Address: 10.96.22.244
+
+
+
+$ curl -s http://backend:8080/api/status      # backend Service reached BY NAME
+{"status":"ok","db":"connected"}
+$ nslookup db      # headless Service resolves straight to the Pod IP (no cluster IP)
+Server:		10.96.0.10
+Address:	10.96.0.10:53
+
+Name:	db.dso202-assignment-01.svc.cluster.local
+Address: 10.244.0.10
+
+
+** server can't find db.svc.cluster.local: NXDOMAIN
+
+** server can't find db.cluster.local: NXDOMAIN
+
+** server can't find db.svc.cluster.local: NXDOMAIN
+
+** server can't find db.cluster.local: NXDOMAIN
+
+command terminated with exit code 1
+
+============================================================
+TASK 7a: Full CRUD cycle (curl through the port-forwarded backend)
+============================================================
+$ curl -s http://localhost:18080/api/tasks                        # READ list (seed rows 1-3)
+[{"id":1,"title":"Set up kind cluster","description":"Bring up the local cluster from Practical 1","status":"done","created_at":"2026-09-08T16:07:09.422Z"},{"id":2,"title":"Write namespace manifest","description":"One namespace for all assignment resources","status":"in_progress","created_at":"2026-09-08T16:07:09.422Z"},{"id":3,"title":"Wire ConfigMap and Secret","description":"DB_* and POSTGRES_* must carry matching values","status":"pending","created_at":"2026-09-08T16:07:09.422Z"}]
+
+$ curl -s -XPOST http://localhost:18080/api/tasks -d '{"title":"CRUD demo","description":"created by verify.sh"}'   # CREATE
+{"id":4,"title":"CRUD demo","description":"created by verify.sh","status":"pending","created_at":"2026-09-08T16:07:51.673Z"}
+# new task id = 4
+
+$ curl -s http://localhost:18080/api/tasks/4                     # READ one
+{"id":4,"title":"CRUD demo","description":"created by verify.sh","status":"pending","created_at":"2026-09-08T16:07:51.673Z"}
+
+$ curl -s -XPUT http://localhost:18080/api/tasks/4 -d '{"status":"done"}'   # UPDATE
+{"id":4,"title":"CRUD demo","description":"created by verify.sh","status":"done","created_at":"2026-09-08T16:07:51.673Z"}
+
+$ curl -s -o /dev/null -w '%{http_code}' -XDELETE http://localhost:18080/api/tasks/4   # DELETE -> expect 204
+204
+$ curl -s -o /dev/null -w '%{http_code}' http://localhost:18080/api/tasks/4            # READ deleted -> expect 404
+404
+
+============================================================
+TASK 7c: Self-healing + data persistence
+============================================================
+$ curl -s -XPOST http://localhost:18080/api/tasks -d '{"title":"persist-marker"}'   # create BEFORE the Pod delete
+{"id":5,"title":"persist-marker","description":"must survive a backend Pod delete","status":"pending","created_at":"2026-09-08T16:07:51.731Z"}
+
+# backend Pod before: backend-6845cf4654-hsd56
+$ kubectl -n dso202-assignment-01 delete pod backend-6845cf4654-hsd56
+pod "backend-6845cf4654-hsd56" deleted from dso202-assignment-01 namespace
+
+$ kubectl -n dso202-assignment-01 get pods -l tier=backend --watch     (ReplicaSet recreates it)
+NAME                       READY   STATUS    RESTARTS   AGE
+backend-6845cf4654-rbh6d   1/1     Running   0          31s
+
+deployment "backend" successfully rolled out
+# backend Pod after:  backend-6845cf4654-rbh6d   (new name => a NEW Pod from the same ReplicaSet)
+
+$ kubectl -n dso202-assignment-01 exec <frontend> -- curl -s http://backend:8080/api/tasks/5
+  # task 5 is STILL THERE -> the PersistentVolume outlived the deleted Pod
+{"id":5,"title":"persist-marker","description":"must survive a backend Pod delete","status":"pending","created_at":"2026-09-08T16:07:51.731Z"}
+
+# --- stronger check: delete the DATABASE Pod; PVC/PV stay bound ---
+$ kubectl -n dso202-assignment-01 delete pod db-c57dcbf96-lkkd8
+pod "db-c57dcbf96-lkkd8" deleted from dso202-assignment-01 namespace
+deployment "db" successfully rolled out
+$ kubectl -n dso202-assignment-01 get pvc db-data      # still Bound to the SAME PV
+NAME      STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+db-data   Bound    pvc-70ca4c84-1794-493f-8f4b-a6a2e86f4728   1Gi        RWO            standard       <unset>                 95s
+
+$ kubectl -n dso202-assignment-01 exec <frontend> -- curl -s http://backend:8080/api/tasks/5
+  # task 5 survived a DB Pod restart too -- data lives on the PV, not the Pod
+{"id":5,"title":"persist-marker","description":"must survive a backend Pod delete","status":"pending","created_at":"2026-09-08T16:07:51.731Z"}
+
+# cleanup marker
+delete marker -> 204
+============================================================
+TASK 7d: Declarative vs imperative (backend Service)
+============================================================
+# Declarative -- the committed manifest (idempotent, reports 'unchanged'):
+$ kubectl apply -f backend/service.yaml
+service/backend unchanged
+
+# Imperative -- the equivalent one-off commands (create a second, throwaway Service):
+$ kubectl -n dso202-assignment-01 create service clusterip backend-imperative --tcp=8080:8080
+service/backend-imperative created
+$ kubectl -n dso202-assignment-01 set selector service backend-imperative 'app=task-tracker,tier=backend'
+service/backend-imperative selector updated
+
+$ kubectl -n dso202-assignment-01 get svc backend backend-imperative -o wide      # equivalent result
+NAME                 TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE   SELECTOR
+backend              ClusterIP   10.96.22.244   <none>        8080/TCP   8h    app=task-tracker,tier=backend
+backend-imperative   ClusterIP   10.96.41.70    <none>        8080/TCP   0s    app=task-tracker,tier=backend
+
+# tidy up the imperative one -- the declarative Service is the real, tracked object
+service "backend-imperative" deleted from dso202-assignment-01 namespace
+
+============================================================
+DONE
+============================================================

@@ -1,0 +1,49 @@
+# Task 6 -- namespace resource governance.
+# Values are justified in README section "Task 6". In short:
+#   * LimitRange gives every container a sane default request/limit and a
+#     hard min/max, so a manifest that forgets `resources:` still schedules
+#     sensibly and nothing can request a pathological amount.
+#   * ResourceQuota caps the namespace total. It is sized for the 3 tiers at
+#     1 replica each, plus enough headroom for a rolling update (maxSurge)
+#     and a couple of short-lived `kubectl exec`/debug pods.
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: task-tracker-limits
+  namespace: dso202-assignment-01
+  labels:
+    app: task-tracker
+spec:
+  limits:
+    - type: Container
+      # applied when a container omits requests/limits
+      default:
+        cpu: "500m"
+        memory: "512Mi"
+      defaultRequest:
+        cpu: "100m"
+        memory: "128Mi"
+      # hard bounds -- a container outside these is rejected
+      min:
+        cpu: "50m"
+        memory: "64Mi"
+      max:
+        cpu: "1"
+        memory: "1Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: task-tracker-quota
+  namespace: dso202-assignment-01
+  labels:
+    app: task-tracker
+spec:
+  hard:
+    requests.cpu: "1"          # steady state ~0.25 CPU; headroom for rollout
+    requests.memory: "1Gi"     # steady state ~0.4Gi; headroom for rollout
+    limits.cpu: "3"
+    limits.memory: "2Gi"
+    pods: "12"                 # 3 steady + rollout surge + exec/debug pods
+    persistentvolumeclaims: "2"  # only the database claim is expected

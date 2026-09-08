@@ -1,0 +1,17 @@
+# kind cluster for DSO202 Assignment 1.
+# Practical 1 established a cluster; this config adds the one thing the
+# assignment needs on top of a default kind cluster: a host->node port
+# mapping so the frontend NodePort Service (nodePort 30080) is reachable
+# from a browser on the host without kubectl port-forward.
+#
+#   kind create cluster --name dso202 --config kind-cluster.yaml
+#
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: dso202
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30080   # must match frontend Service .spec.ports[0].nodePort
+        hostPort: 30080
+        protocol: TCP

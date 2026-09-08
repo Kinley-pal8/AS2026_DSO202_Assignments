@@ -1,0 +1,103 @@
+### kubectl get all,pvc,cm,secret -n dso202-assignment-01
+NAME                           READY   STATUS    RESTARTS      AGE     IP            NODE                   NOMINATED NODE   READINESS GATES
+pod/backend-6845cf4654-rbh6d   1/1     Running   1 (13s ago)   60s     10.244.0.12   dso202-control-plane   <none>           <none>
+pod/db-c57dcbf96-xjnm7         1/1     Running   0             13s     10.244.0.13   dso202-control-plane   <none>           <none>
+pod/frontend-5b7dbcfff-bzrbp   1/1     Running   1 (37m ago)   7h57m   10.244.0.5    dso202-control-plane   <none>           <none>
+
+NAME               TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)          AGE   SELECTOR
+service/backend    ClusterIP   10.96.22.244   <none>        8080/TCP         8h    app=task-tracker,tier=backend
+service/db         ClusterIP   None           <none>        5432/TCP         8h    app=task-tracker,tier=database
+service/frontend   NodePort    10.96.145.65   <none>        8080:30080/TCP   8h    app=task-tracker,tier=frontend
+
+NAME                       READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS   IMAGES                             SELECTOR
+deployment.apps/backend    1/1     1            1           8h    backend      sarojsanyasi/dso202-backend:1.0    app=task-tracker,tier=backend
+deployment.apps/db         1/1     1            1           8h    postgres     sarojsanyasi/dso202-db:1.0         app=task-tracker,tier=database
+deployment.apps/frontend   1/1     1            1           8h    frontend     sarojsanyasi/dso202-frontend:1.0   app=task-tracker,tier=frontend
+
+NAME                                 DESIRED   CURRENT   READY   AGE     CONTAINERS   IMAGES                             SELECTOR
+replicaset.apps/backend-6845cf4654   1         1         1       7h52m   backend      sarojsanyasi/dso202-backend:1.0    app=task-tracker,pod-template-hash=6845cf4654,tier=backend
+replicaset.apps/db-c57dcbf96         1         1         1       8h      postgres     sarojsanyasi/dso202-db:1.0         app=task-tracker,pod-template-hash=c57dcbf96,tier=database
+replicaset.apps/frontend-5b7dbcfff   1         1         1       8h      frontend     sarojsanyasi/dso202-frontend:1.0   app=task-tracker,pod-template-hash=5b7dbcfff,tier=frontend
+
+NAME                            STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE    VOLUMEMODE
+persistentvolumeclaim/db-data   Bound    pvc-70ca4c84-1794-493f-8f4b-a6a2e86f4728   1Gi        RWO            standard       <unset>                 108s   Filesystem
+
+NAME                            DATA   AGE
+configmap/kube-root-ca.crt      1      8h
+configmap/task-tracker-config   7      8h
+
+NAME                         TYPE     DATA   AGE
+secret/task-tracker-secret   Opaque   4      8h
+
+### kubectl describe resourcequota task-tracker-quota
+Name:                   task-tracker-quota
+Namespace:              dso202-assignment-01
+Resource                Used   Hard
+--------                ----   ----
+limits.cpu              1200m  3
+limits.memory           896Mi  2Gi
+persistentvolumeclaims  1      2
+pods                    3      12
+requests.cpu            250m   1
+requests.memory         384Mi  1Gi
+
+### kubectl describe limitrange task-tracker-limits
+Name:       task-tracker-limits
+Namespace:  dso202-assignment-01
+Type        Resource  Min   Max  Default Request  Default Limit  Max Limit/Request Ratio
+----        --------  ---   ---  ---------------  -------------  -----------------------
+Container   cpu       50m   1    100m             500m           -
+Container   memory    64Mi  1Gi  128Mi            512Mi          -
+
+### tier label present on every pod / deployment / service
+NAME                           READY   STATUS    RESTARTS      AGE     TIER
+pod/backend-6845cf4654-rbh6d   1/1     Running   1 (13s ago)   60s     backend
+pod/db-c57dcbf96-xjnm7         1/1     Running   0             13s     database
+pod/frontend-5b7dbcfff-bzrbp   1/1     Running   1 (37m ago)   7h57m   frontend
+
+NAME                       READY   UP-TO-DATE   AVAILABLE   AGE   TIER
+deployment.apps/backend    1/1     1            1           8h    backend
+deployment.apps/db         1/1     1            1           8h    database
+deployment.apps/frontend   1/1     1            1           8h    frontend
+
+NAME               TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)          AGE   TIER
+service/backend    ClusterIP   10.96.22.244   <none>        8080/TCP         8h    backend
+service/db         ClusterIP   None           <none>        5432/TCP         8h    database
+service/frontend   NodePort    10.96.145.65   <none>        8080:30080/TCP   8h    frontend
+
+### frontend NodePort served from the host (localhost:30080)
+HTTP/1.1 200 OK
+Server: nginx/1.31.3
+Date: Tue, 08 Sep 2026 16:08:51 GMT
+Content-Type: text/html
+Content-Length: 2639
+Last-Modified: Tue, 18 Aug 2026 17:34:03 GMT
+Connection: keep-alive
+ETag: "6a84978b-a4f"
+Accept-Ranges: bytes
+
+### rendered /config.js  (BACKEND_URL substituted at Pod start by the entrypoint)
+// Rendered at container start by docker-entrypoint.sh via envsubst.
+// Static assets can't read environment variables at request time, so the
+// real value gets baked into config.js once, right before nginx starts.
+window.__CONFIG__ = {
+  BACKEND_URL: "http://backend.dso202-assignment-01.svc.cluster.local:8080"
+};
+
+### env actually seen by the backend container (DB_*, from ConfigMap + Secret)
+APP_PORT=8080
+CORS_ORIGIN=*
+DB_HOST=db
+DB_NAME=taskdb
+DB_PASSWORD=taskpass
+DB_PORT=5432
+DB_USER=taskuser
+
+### env actually seen by the postgres container (POSTGRES_*, from ConfigMap + Secret)
+POSTGRES_DB=taskdb
+POSTGRES_PASSWORD=taskpass
+POSTGRES_USER=taskuser
+
+### default StorageClass used by the PVC
+NAME                 PROVISIONER             RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION   AGE
+standard (default)   rancher.io/local-path   Delete          WaitForFirstConsumer   false                  8h
