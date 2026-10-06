@@ -1,0 +1,9 @@
+# Own namespace for Assignment 2, separate from dso202-assignment-01 so the
+# two assignments' resources never collide on the shared kind cluster.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dso202-assignment-02
+  labels:
+    app: task-tracker
+    purpose: dso202-assignment-02

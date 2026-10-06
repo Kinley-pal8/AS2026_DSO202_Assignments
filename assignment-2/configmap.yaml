@@ -1,0 +1,27 @@
+# Same ConfigMap contract as Assignment 1 (DB_* / POSTGRES_* naming
+# mismatch handled the same way), with one deliberate change: BACKEND_URL
+# is now empty.
+#
+# app.js does `const API = (BACKEND_URL || '') + '/api/tasks'`. An EMPTY
+# BACKEND_URL makes every fetch() call a RELATIVE path (/api/tasks), so the
+# browser calls whatever origin served the page. Once the Ingress (Task 2 of
+# this assignment) puts the frontend and the backend behind the SAME host,
+# that relative call becomes same-origin and resolves without CORS or
+# cluster-DNS involvement -- this is what actually fixes Assignment 1's
+# "Known limitation" (the backend was cluster-internal-only, so the browser
+# could never reach it directly).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: task-tracker-config
+  namespace: dso202-assignment-02
+  labels:
+    app: task-tracker
+data:
+  DB_HOST: "db"
+  DB_PORT: "5432"
+  DB_NAME: "taskdb"
+  APP_PORT: "8080"
+  CORS_ORIGIN: "*"
+  POSTGRES_DB: "taskdb"
+  BACKEND_URL: ""

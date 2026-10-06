@@ -1,0 +1,15 @@
+# Creating this Custom Resource is the whole trigger. The Operator
+# (running from ../manager/manager.yaml) notices it, runs a pg_dump Job
+# against the `db` StatefulSet's headless Service, and reports back:
+#
+#   kubectl apply -f config/samples/dbbackup-sample.yaml
+#   kubectl get dbbackup demo-backup -w                # Phase: Pending -> Running -> Succeeded
+#   kubectl get dbbackup demo-backup -o yaml            # .status.jobName / .message
+#   kubectl logs job/<jobName>                          # "BACKUP_OK: N lines dumped from db"
+apiVersion: dso202.io/v1alpha1
+kind: DbBackup
+metadata:
+  name: demo-backup
+  namespace: dso202-assignment-02
+spec:
+  targetService: db

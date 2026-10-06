@@ -1,0 +1,35 @@
+# The Operator itself runs as an ordinary Deployment -- a controller is just
+# a Pod that watches the API server, nothing more exotic than that. It uses
+# the least-privilege ServiceAccount from ../../rbac/rbac.yaml
+# (dbbackup-operator-sa).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dbbackup-operator
+  namespace: dso202-assignment-02
+  labels:
+    app: task-tracker
+    component: dbbackup-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      component: dbbackup-operator
+  template:
+    metadata:
+      labels:
+        app: task-tracker
+        component: dbbackup-operator
+    spec:
+      serviceAccountName: dbbackup-operator-sa
+      containers:
+        - name: manager
+          image: dso202/dbbackup-operator:1.0
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"

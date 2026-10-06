@@ -4,3 +4,9 @@ __MACOSX/
 
 # local kube/PF scratch
 *.kubeconfig
+
+# Go build artifacts (the operator image is built inside Docker; nothing
+# here should ever be committed, but guard against a stray local `go build`)
+assignment-2/operator/manager
+assignment-2/operator/dbbackup-operator
+assignment-2/operator/bin/

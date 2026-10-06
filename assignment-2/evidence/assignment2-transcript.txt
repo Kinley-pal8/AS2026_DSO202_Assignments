@@ -1,0 +1,185 @@
+
+============================================================
+CONTEXT
+============================================================
+kind-dso202
+NAME                                    READY   STATUS      RESTARTS       AGE   IP            NODE                   NOMINATED NODE   READINESS GATES
+pod/backend-66c77fbd6b-98x9x            1/1     Running     16 (17h ago)   10d   10.244.0.8    dso202-control-plane   <none>           <none>
+pod/db-0                                1/1     Running     15 (17h ago)   10d   10.244.0.11   dso202-control-plane   <none>           <none>
+pod/dbbackup-demo-backup-kbvm2-nf7n6    0/1     Completed   0              10d   <none>        dso202-control-plane   <none>           <none>
+pod/dbbackup-operator-f4b84f5f6-kj4lj   1/1     Running     15 (17h ago)   10d   10.244.0.9    dso202-control-plane   <none>           <none>
+pod/frontend-5b7dbcfff-cxft5            1/1     Running     15 (17h ago)   10d   10.244.0.7    dso202-control-plane   <none>           <none>
+
+NAME               TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE   SELECTOR
+service/backend    ClusterIP   10.96.223.224   <none>        8080/TCP   10d   app=task-tracker,tier=backend
+service/db         ClusterIP   None            <none>        5432/TCP   10d   app=task-tracker,tier=database
+service/frontend   ClusterIP   10.96.168.136   <none>        8080/TCP   10d   app=task-tracker,tier=frontend
+
+NAME                                READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS   IMAGES                             SELECTOR
+deployment.apps/backend             1/1     1            1           10d   backend      sarojsanyasi/dso202-backend:1.0    app=task-tracker,tier=backend
+deployment.apps/dbbackup-operator   1/1     1            1           10d   manager      dso202/dbbackup-operator:1.0       component=dbbackup-operator
+deployment.apps/frontend            1/1     1            1           10d   frontend     sarojsanyasi/dso202-frontend:1.0   app=task-tracker,tier=frontend
+
+NAME                                           DESIRED   CURRENT   READY   AGE   CONTAINERS   IMAGES                             SELECTOR
+replicaset.apps/backend-66c77fbd6b             1         1         1       10d   backend      sarojsanyasi/dso202-backend:1.0    app=task-tracker,pod-template-hash=66c77fbd6b,tier=backend
+replicaset.apps/dbbackup-operator-5b85685b79   0         0         0       10d   manager      dso202/dbbackup-operator:1.0       component=dbbackup-operator,pod-template-hash=5b85685b79
+replicaset.apps/dbbackup-operator-f4b84f5f6    1         1         1       10d   manager      dso202/dbbackup-operator:1.0       component=dbbackup-operator,pod-template-hash=f4b84f5f6
+replicaset.apps/frontend-5b7dbcfff             1         1         1       10d   frontend     sarojsanyasi/dso202-frontend:1.0   app=task-tracker,pod-template-hash=5b7dbcfff,tier=frontend
+
+NAME                  READY   AGE   CONTAINERS   IMAGES
+statefulset.apps/db   1/1     10d   postgres     sarojsanyasi/dso202-db:1.0
+
+NAME                                   STATUS     COMPLETIONS   DURATION   AGE   CONTAINERS   IMAGES                       SELECTOR
+job.batch/dbbackup-demo-backup-kbvm2   Complete   1/1           3s         10d   pg-dump      sarojsanyasi/dso202-db:1.0   batch.kubernetes.io/controller-uid=5f3756cb-78a7-4ac0-80e1-6d705fc6bbfe
+
+NAME                                     CLASS   HOSTS                                          ADDRESS     PORTS     AGE
+ingress.networking.k8s.io/task-tracker   nginx   tasktracker.dso202.local,status.dso202.local   localhost   80, 443   10d
+
+NAME                                 STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE   VOLUMEMODE
+persistentvolumeclaim/db-data-db-0   Bound    pvc-de6bdc6c-111e-497d-a1b2-2cce9e4fb4d3   1Gi        RWO            standard       <unset>                 10d   Filesystem
+
+NAME                            DATA   AGE
+configmap/kube-root-ca.crt      1      10d
+configmap/task-tracker-config   7      10d
+
+NAME                         TYPE                DATA   AGE
+secret/task-tracker-secret   Opaque              4      10d
+secret/tasktracker-tls       kubernetes.io/tls   2      10d
+
+NAME                               REQUEST                                                                                     LIMIT                                         AGE
+resourcequota/task-tracker-quota   persistentvolumeclaims: 1/2, pods: 4/20, requests.cpu: 300m/1, requests.memory: 448Mi/1Gi   limits.cpu: 1400m/3, limits.memory: 1Gi/2Gi   10d
+
+============================================================
+2.1 StatefulSet: stable network identity + per-replica storage
+============================================================
+$ kubectl -n dso202-assignment-02 get pods -l tier=database -o wide     # name is always db-0, not a random suffix
+NAME   READY   STATUS    RESTARTS       AGE   IP            NODE                   NOMINATED NODE   READINESS GATES
+db-0   1/1     Running   15 (17h ago)   10d   10.244.0.11   dso202-control-plane   <none>           <none>
+
+$ kubectl -n dso202-assignment-02 get pvc                                 # db-data-db-0, bound to this ordinal
+NAME           STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+db-data-db-0   Bound    pvc-de6bdc6c-111e-497d-a1b2-2cce9e4fb4d3   1Gi        RWO            standard       <unset>                 10d
+
+$ kubectl -n dso202-assignment-02 exec frontend-5b7dbcfff-cxft5 -- nslookup db-0.db.dso202-assignment-02.svc.cluster.local
+Server:		10.96.0.10
+Address:	10.96.0.10:53
+
+
+Name:	db-0.db.dso202-assignment-02.svc.cluster.local
+Address: 10.244.0.11
+
+
+# --- delete db-0 and confirm the REPLACEMENT Pod has the SAME name ---
+pod "db-0" deleted from dso202-assignment-02 namespace
+Waiting for 1 pods to be ready...
+partitioned roll out complete: 1 new pods have been updated...
+$ kubectl -n dso202-assignment-02 get pod db-0     # same name after recreation -- a Deployment would rename it
+NAME   READY   STATUS    RESTARTS   AGE
+db-0   1/1     Running   0          0s
+
+# deleting db-0 drops the backend's DB connection pool and it restarts once
+# (documented in Assignment 1's Task 7c) -- settle before hitting it via Ingress
+deployment "backend" successfully rolled out
+
+============================================================
+2.2 Ingress: routing, TLS, name-based virtual hosting
+============================================================
+# both hosts resolve to the ingress-nginx controller's hostPort via --resolve,
+# so this works without editing /etc/hosts. Ports are 8080/8443 (not 80/443)
+# because this host's Apache already owns 80 -- see kind-cluster.yaml.
+
+$ curl -sk https://tasktracker.dso202.local:8443/ --resolve tasktracker.dso202.local:8443:127.0.0.1 | head -5
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+$ curl -sk https://tasktracker.dso202.local:8443/api/tasks --resolve tasktracker.dso202.local:8443:127.0.0.1
+[{"id":1,"title":"Set up kind cluster","description":"Bring up the local cluster from Practical 1","status":"done","created_at":"2026-09-26T18:50:56.492Z"},{"id":2,"title":"Write namespace manifest","description":"One namespace for all assignment resources","status":"in_progress","created_at":"2026-09-26T18:50:56.492Z"},{"id":3,"title":"Wire ConfigMap and Secret","description":"DB_* and POSTGRES_* must carry matching values","status":"pending","created_at":"2026-09-26T18:50:56.492Z"}]
+
+# second virtual host -- SAME ip:port, DIFFERENT Service (straight to backend)
+$ curl -sk https://status.dso202.local:8443/api/status --resolve status.dso202.local:8443:127.0.0.1
+{"status":"ok","db":"connected"}
+
+# TLS termination -- the presented cert is the self-signed one from deploy.sh
+$ curl -skv https://tasktracker.dso202.local:8443/ --resolve tasktracker.dso202.local:8443:127.0.0.1 2>&1 | grep -E 'subject:|issuer:|SSL connection'
+* SSL connection using TLSv1.3 / TLS_AES_256_GCM_SHA384 / x25519 / RSASSA-PSS
+*   subject: CN=tasktracker.dso202.local
+*   issuer: CN=tasktracker.dso202.local
+
+============================================================
+2.3 RBAC: authentication vs authorization
+============================================================
+# IMPORTANT: 'kubectl --token=X' alone is NOT a valid test on this cluster --
+# the ambient admin kubeconfig also carries a client CERTIFICATE, and mutual-TLS
+# client-cert auth wins over a bearer token, so every call would silently run as
+# admin regardless of which token is passed (verified: try it, everything says
+# 'yes' to auth can-i --list). A clean, TOKEN-ONLY kubeconfig avoids that, exactly
+# like Assignment 1's bonus RBAC evidence (evidence/bonus-rbac.txt) already did.
+# backend-sa: has an identity (mounted token) but NO Role/RoleBinding targets it
+$ kubectl -n dso202-assignment-02 exec backend-66c77fbd6b-98x9x -- cat /var/run/secrets/kubernetes.io/serviceaccount/token
+# (token retrieved, 1232 chars)
+$ kubectl --kubeconfig=<backend-sa only> -n dso202-assignment-02 get pods       # expect Forbidden
+Error from server (Forbidden): pods is forbidden: User "system:serviceaccount:dso202-assignment-02:backend-sa" cannot list resource "pods" in API group "" in the namespace "dso202-assignment-02"
+
+# viewer: bound to Role (namespace) + ClusterRole (nodes) + aggregated ClusterRole (quota)
+$ kubectl --kubeconfig=<viewer only> -n dso202-assignment-02 get pods            # allowed (Role)
+NAME                                READY   STATUS      RESTARTS       AGE
+backend-66c77fbd6b-98x9x            1/1     Running     16 (17h ago)   10d
+db-0                                1/1     Running     0              1s
+dbbackup-demo-backup-kbvm2-nf7n6    0/1     Completed   0              10d
+dbbackup-operator-f4b84f5f6-kj4lj   1/1     Running     15 (17h ago)   10d
+frontend-5b7dbcfff-cxft5            1/1     Running     15 (17h ago)   10d
+$ kubectl --kubeconfig=<viewer only> get nodes                  # allowed (ClusterRole)
+NAME                   STATUS   ROLES           AGE   VERSION
+dso202-control-plane   Ready    control-plane   10d   v1.36.1
+$ kubectl --kubeconfig=<viewer only> -n dso202-assignment-02 get resourcequota   # allowed (aggregated ClusterRole)
+NAME                 REQUEST                                                                                     LIMIT                                         AGE
+task-tracker-quota   persistentvolumeclaims: 1/2, pods: 4/20, requests.cpu: 300m/1, requests.memory: 448Mi/1Gi   limits.cpu: 1400m/3, limits.memory: 1Gi/2Gi   10d
+$ kubectl --kubeconfig=<viewer only> -n dso202-assignment-02 get secret task-tracker-secret   # expect Forbidden
+Error from server (Forbidden): secrets "task-tracker-secret" is forbidden: User "system:serviceaccount:dso202-assignment-02:viewer" cannot get resource "secrets" in API group "" in the namespace "dso202-assignment-02"
+$ kubectl get clusterrole dso202-monitoring-aggregate -o jsonpath='{.rules}'   # auto-populated
+[{"apiGroups":[""],"resources":["pods"],"verbs":["get","list","watch"]},{"apiGroups":[""],"resources":["resourcequotas","limitranges"],"verbs":["get","list","watch"]}]
+
+============================================================
+2.4 Operator: DbBackup custom resource end to end
+============================================================
+$ kubectl apply -f operator/config/samples/dbbackup-sample.yaml
+dbbackup.dso202.io/demo-backup created
+
+# poll .status.phase until it leaves Pending/Running
+  t+1s phase=Running
+  t+2s phase=Running
+  t+3s phase=Succeeded
+
+$ kubectl -n dso202-assignment-02 get dbbackup demo-backup -o yaml
+apiVersion: dso202.io/v1alpha1
+kind: DbBackup
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"dso202.io/v1alpha1","kind":"DbBackup","metadata":{"annotations":{},"name":"demo-backup","namespace":"dso202-assignment-02"},"spec":{"targetService":"db"}}
+  creationTimestamp: "2026-10-06T21:19:53Z"
+  generation: 1
+  name: demo-backup
+  namespace: dso202-assignment-02
+  resourceVersion: "247769"
+  uid: ce2a810e-d79c-4b80-94df-0f38a3191ff1
+spec:
+  image: sarojsanyasi/dso202-db:1.0
+  targetService: db
+status:
+  completionTime: "2026-10-06T21:19:56Z"
+  jobName: dbbackup-demo-backup-5kdkk
+  message: 'pg_dump completed; see: kubectl logs job/dbbackup-demo-backup-5kdkk'
+  observedGeneration: 1
+  phase: Succeeded
+  startTime: "2026-10-06T21:19:53Z"
+
+$ kubectl -n dso202-assignment-02 logs job/dbbackup-demo-backup-5kdkk
+BACKUP_OK: 102 lines dumped from db
+
+============================================================
+DONE
+============================================================

@@ -1,0 +1,96 @@
+# Unit II 2.1 -- the database as a StatefulSet instead of Assignment 1's
+# Deployment+PVC pair.
+#
+# Why a StatefulSet earns its place here (2.1.1): a single-replica Deployment
+# with a claimName PVC already gives stable storage, but it does NOT give a
+# stable, predictable Pod *name* or per-replica storage that would survive
+# scaling to N replicas -- every Deployment rollout can rename the Pod
+# (`db-7c9f...-xxxxx`), and all replicas would fight over the same PVC. A
+# StatefulSet gives:
+#   * a stable network identity (2.1.2.1): the Pod is always named `db-0`
+#     (not a random suffix), so it always has the DNS name
+#     `db-0.db.dso202-assignment-02.svc.cluster.local` -- useful the moment
+#     a second Postgres role (e.g. a replica) needs to address a specific
+#     peer by name, which a Deployment's floating Pod names cannot do.
+#   * ordered deployment/scaling (2.1.2.2): `db-0` must reach Ready before
+#     `db-1` is created (and scale-down removes the highest ordinal first),
+#     which matters for anything that bootstraps off a known primary.
+#   * a volumeClaimTemplate (2.1.4): each ordinal gets its OWN PVC
+#     (`db-data-db-0`, `db-data-db-1`, ...), created and retained
+#     automatically -- no hand-written PVC file, and storage survives Pod
+#     rescheduling per-replica rather than being shared/contended.
+#
+# This assignment still runs a single replica (Unit I scope did not require
+# more, and a real multi-primary Postgres needs replication config this
+# module does not cover) -- the StatefulSet is adopted for the *mechanism*
+# (identity + per-replica storage), not because 1 replica strictly needs it.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: db
+  namespace: dso202-assignment-02
+  labels:
+    app: task-tracker
+    tier: database
+spec:
+  serviceName: db          # must name the headless Service below (2.1.3)
+  replicas: 1
+  selector:
+    matchLabels:
+      app: task-tracker
+      tier: database
+  template:
+    metadata:
+      labels:
+        app: task-tracker
+        tier: database
+    spec:
+      containers:
+        - name: postgres
+          image: sarojsanyasi/dso202-db:1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: task-tracker-config
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: task-tracker-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: task-tracker-secret
+                  key: POSTGRES_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: db-data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "192Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+  # 2.1.4 -- one PVC PER REPLICA, provisioned automatically from this
+  # template (db-data-db-0 for ordinal 0); no standalone pvc.yaml needed.
+  volumeClaimTemplates:
+    - metadata:
+        name: db-data
+        labels:
+          app: task-tracker
+          tier: database
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi

@@ -1,17 +1,38 @@
-# kind cluster for DSO202 Assignment 1.
-# Practical 1 established a cluster; this config adds the one thing the
-# assignment needs on top of a default kind cluster: a host->node port
-# mapping so the frontend NodePort Service (nodePort 30080) is reachable
-# from a browser on the host without kubectl port-forward.
+# Shared kind cluster for the DSO202 module (Practical 1 + all assignments).
 #
+#   kind delete cluster --name dso202   # if an older cluster from Assignment 1 exists
 #   kind create cluster --name dso202 --config kind-cluster.yaml
 #
+# kind's node config is immutable after creation, so this file is the union of
+# everything the assignments need:
+#   - Assignment 1: host->node port 30080, so the frontend NodePort Service is
+#     reachable from a browser without kubectl port-forward.
+#   - Assignment 2: the `ingress-ready=true` node label plus host ports
+#     8080/8443, mapped to the ingress-nginx controller's containerPort
+#     80/443 -- kind's documented recipe for running that controller (its
+#     Pod runs with a hostPort on nodes carrying that label instead of a
+#     cloud LoadBalancer). Host 80/443 are deliberately NOT used here: this
+#     machine already runs Apache on 80 for unrelated coursework, and kind
+#     would otherwise fail to create the container with "address already in
+#     use". 8080/8443 need nothing else installed or stopped on the host.
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 name: dso202
 nodes:
   - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
     extraPortMappings:
-      - containerPort: 30080   # must match frontend Service .spec.ports[0].nodePort
+      - containerPort: 30080   # Assignment 1: frontend NodePort Service
         hostPort: 30080
+        protocol: TCP
+      - containerPort: 80      # Assignment 2: ingress-nginx HTTP
+        hostPort: 8080
+        protocol: TCP
+      - containerPort: 443     # Assignment 2: ingress-nginx HTTPS
+        hostPort: 8443
         protocol: TCP

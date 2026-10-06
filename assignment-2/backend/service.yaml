@@ -1,0 +1,21 @@
+# Unchanged from Assignment 1: ClusterIP, in-cluster only. The Ingress
+# (ingress/ingress.yaml) is what now fronts it for the "status" virtual host
+# and for the /api path of the main host -- the Service itself still never
+# gets a NodePort/LoadBalancer.
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: dso202-assignment-02
+  labels:
+    app: task-tracker
+    tier: backend
+spec:
+  type: ClusterIP
+  selector:
+    app: task-tracker
+    tier: backend
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

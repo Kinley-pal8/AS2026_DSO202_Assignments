@@ -1,0 +1,24 @@
+# Unit II 2.1.3 -- the headless Service a StatefulSet requires.
+# clusterIP: None is what makes it "headless": no virtual IP, no proxying;
+# CoreDNS instead publishes one A/AAAA record per ready Pod, keyed by the
+# StatefulSet's stable Pod name -- db-0.db.dso202-assignment-02.svc.cluster.local.
+# This is the same headless pattern as Assignment 1's database Service, now
+# formally the mechanism a StatefulSet is built on rather than a manual
+# choice for a single Deployment replica.
+apiVersion: v1
+kind: Service
+metadata:
+  name: db
+  namespace: dso202-assignment-02
+  labels:
+    app: task-tracker
+    tier: database
+spec:
+  clusterIP: None
+  selector:
+    app: task-tracker
+    tier: database
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432

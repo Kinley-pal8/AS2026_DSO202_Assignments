@@ -1,0 +1,74 @@
+# Unit II 2.4.1.1 -- the CustomResourceDefinition the DbBackup Operator
+# watches. This is a cluster-scoped object (defining a new API type),
+# distinct from any DbBackup instance of it (which IS namespaced).
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: dbbackups.dso202.io
+  labels:
+    app: task-tracker
+    component: dbbackup-operator
+spec:
+  group: dso202.io
+  scope: Namespaced
+  names:
+    kind: DbBackup
+    listKind: DbBackupList
+    plural: dbbackups
+    singular: dbbackup
+    shortNames: ["dbb"]
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Job
+          type: string
+          jsonPath: .status.jobName
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          description: >-
+            A one-shot request to back up the Task Tracker database. Creating
+            a DbBackup is the trigger; the Operator reconciles it by running
+            a pg_dump Job against the `db` StatefulSet's headless Service and
+            reporting the result back onto .status.
+          properties:
+            spec:
+              type: object
+              properties:
+                targetService:
+                  type: string
+                  default: db
+                  description: headless Service name of the database to dump.
+                image:
+                  type: string
+                  default: sarojsanyasi/dso202-db:1.0
+                  description: >-
+                    image the backup Job runs pg_dump from (must contain the
+                    postgres client tools; the app's own db image already does).
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum: ["Pending", "Running", "Succeeded", "Failed"]
+                jobName:
+                  type: string
+                startTime:
+                  type: string
+                completionTime:
+                  type: string
+                message:
+                  type: string
+                observedGeneration:
+                  type: integer
+                  format: int64

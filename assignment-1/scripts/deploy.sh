@@ -20,7 +20,7 @@ IMAGES=(sarojsanyasi/dso202-db:1.0 sarojsanyasi/dso202-backend:1.0 sarojsanyasi/
 # 1. cluster ------------------------------------------------------------------
 if ! kind get clusters | grep -qx "$CLUSTER"; then
   echo ">> creating kind cluster '$CLUSTER'"
-  kind create cluster --name "$CLUSTER" --config kind-cluster.yaml
+  kind create cluster --name "$CLUSTER" --config ../kind-cluster.yaml
 else
   echo ">> kind cluster '$CLUSTER' already exists"
 fi
@@ -32,9 +32,9 @@ kubectl config use-context "kind-${CLUSTER}"
 # load them (skip this block entirely on arm64 / once amd64 images exist).
 if [ "$(uname -m)" = "x86_64" ]; then
   echo ">> building images from provided Dockerfiles (amd64 host)"
-  docker build -t sarojsanyasi/dso202-db:1.0       ./images/db
-  docker build -t sarojsanyasi/dso202-backend:1.0  ./images/backend
-  docker build -t sarojsanyasi/dso202-frontend:1.0 ./images/frontend
+  docker build -t sarojsanyasi/dso202-db:1.0       ../images/db
+  docker build -t sarojsanyasi/dso202-backend:1.0  ../images/backend
+  docker build -t sarojsanyasi/dso202-frontend:1.0 ../images/frontend
   echo ">> loading images into the cluster"
   kind load docker-image --name "$CLUSTER" "${IMAGES[@]}"
 fi

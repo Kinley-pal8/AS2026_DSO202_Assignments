@@ -1,0 +1,224 @@
+# Unit II 2.3 -- RBAC, formalising what Assignment 1's Task 8 (bonus) only
+# sketched. Five pieces:
+#
+# 1. `backend-sa` -- a ServiceAccount used purely for Pod AUTHENTICATION
+#    (2.3.3.2). backend/deployment.yaml sets serviceAccountName: backend-sa.
+#    No Role/RoleBinding below targets it, so the backend Pod has an
+#    identity (a mounted, auto-rotated token it could present to the API
+#    server) but zero authorization -- proof in the README: exec'ing in and
+#    running `kubectl --token=<backend-sa's token> get pods` returns
+#    Forbidden, while the same command with `viewer`'s token succeeds. That
+#    contrast is the point: authentication (who are you) and authorization
+#    (what can you do) are separate steps, and a ServiceAccount only
+#    supplies the first unless something binds it to a Role.
+#
+# 2. `viewer` + Role `namespace-readonly` + RoleBinding -- the same
+#    namespace-scoped read-only pattern as Assignment 1's bonus (2.3.1.1
+#    defining permissions, 2.3.2.1 binding a Role to a ServiceAccount).
+#
+# 3. ClusterRole `dso202-node-reader` + ClusterRoleBinding -- `viewer` is
+#    ALSO bound (via a ClusterRoleBinding this time) to a ClusterRole that
+#    reads a genuinely cluster-scoped resource (Nodes have no namespace, so
+#    a namespaced Role could never grant this -- 2.3.1.1 vs 2.3.2).
+#
+# 4. Aggregated ClusterRoles (2.3.1.2) -- `dso202-view-pods` and
+#    `dso202-view-quota` each carry the label
+#    `rbac.dso202.io/aggregate-to-monitoring: "true"`. The ClusterRole
+#    `dso202-monitoring-aggregate` has an `aggregationRule` selecting that
+#    label and an EMPTY `rules: []` of its own -- the API server fills its
+#    `rules` in automatically from every ClusterRole matching the selector.
+#    Confirm with `kubectl get clusterrole dso202-monitoring-aggregate -o
+#    yaml` after apply: `rules` is populated even though this file never
+#    wrote any into it directly. A RoleBinding hands the AGGREGATE role
+#    (not its parts) to `viewer` in this namespace, so `viewer` also gets
+#    ResourceQuota/LimitRange read access without a third explicit grant.
+#
+# 5. `dbbackup-operator-sa` + Role + RoleBinding -- the ServiceAccount the
+#    Operator (operator/) runs as. It is least-privilege for exactly what
+#    the controller does: watch/update DbBackup custom resources and their
+#    status, and create/watch the Jobs it spawns. This is RBAC applied to a
+#    real controller, not just a demo ServiceAccount.
+---
+# ---- 1. backend-sa: identity only, no permissions ----
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: backend-sa
+  namespace: dso202-assignment-02
+  labels:
+    app: task-tracker
+    tier: backend
+---
+# ---- 2. viewer + namespace-scoped Role ----
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: viewer
+  namespace: dso202-assignment-02
+  labels:
+    app: task-tracker
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: namespace-readonly
+  namespace: dso202-assignment-02
+  labels:
+    app: task-tracker
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "services", "configmaps", "persistentvolumeclaims", "events"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets", "statefulsets"]
+    verbs: ["get", "list", "watch"]
+# Secrets are deliberately absent -- a read-only viewer has no business
+# reading credentials.
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: viewer-namespace-readonly
+  namespace: dso202-assignment-02
+  labels:
+    app: task-tracker
+subjects:
+  - kind: ServiceAccount
+    name: viewer
+    namespace: dso202-assignment-02
+roleRef:
+  kind: Role
+  name: namespace-readonly
+  apiGroup: rbac.authorization.k8s.io
+---
+# ---- 3. cluster-scoped read via ClusterRole + ClusterRoleBinding ----
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dso202-node-reader
+  labels:
+    app: task-tracker
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: viewer-node-reader
+  labels:
+    app: task-tracker
+subjects:
+  - kind: ServiceAccount
+    name: viewer
+    namespace: dso202-assignment-02
+roleRef:
+  kind: ClusterRole
+  name: dso202-node-reader
+  apiGroup: rbac.authorization.k8s.io
+---
+# ---- 4. Aggregated ClusterRoles ----
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dso202-view-pods
+  labels:
+    app: task-tracker
+    rbac.dso202.io/aggregate-to-monitoring: "true"
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dso202-view-quota
+  labels:
+    app: task-tracker
+    rbac.dso202.io/aggregate-to-monitoring: "true"
+rules:
+  - apiGroups: [""]
+    resources: ["resourcequotas", "limitranges"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dso202-monitoring-aggregate
+  labels:
+    app: task-tracker
+  # No rules of its own -- the API server merges in every ClusterRole
+  # carrying the matched label, including ones added later with no change
+  # here (that's the point of aggregation).
+aggregationRule:
+  clusterRoleSelectors:
+    - matchLabels:
+        rbac.dso202.io/aggregate-to-monitoring: "true"
+rules: []
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: viewer-monitoring-aggregate
+  namespace: dso202-assignment-02
+  labels:
+    app: task-tracker
+subjects:
+  - kind: ServiceAccount
+    name: viewer
+    namespace: dso202-assignment-02
+roleRef:
+  kind: ClusterRole
+  name: dso202-monitoring-aggregate
+  apiGroup: rbac.authorization.k8s.io
+---
+# ---- 5. the Operator's own least-privilege identity ----
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dbbackup-operator-sa
+  namespace: dso202-assignment-02
+  labels:
+    app: task-tracker
+    component: dbbackup-operator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: dbbackup-operator
+  namespace: dso202-assignment-02
+  labels:
+    app: task-tracker
+    component: dbbackup-operator
+rules:
+  - apiGroups: ["dso202.io"]
+    resources: ["dbbackups"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["dso202.io"]
+    resources: ["dbbackups/status"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dbbackup-operator
+  namespace: dso202-assignment-02
+  labels:
+    app: task-tracker
+    component: dbbackup-operator
+subjects:
+  - kind: ServiceAccount
+    name: dbbackup-operator-sa
+    namespace: dso202-assignment-02
+roleRef:
+  kind: Role
+  name: dbbackup-operator
+  apiGroup: rbac.authorization.k8s.io

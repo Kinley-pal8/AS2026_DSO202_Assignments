@@ -1,0 +1,22 @@
+# Changed from Assignment 1's NodePort to ClusterIP: the Ingress
+# (ingress/ingress.yaml) is now the single external entry point for the
+# whole namespace, which is the idiomatic pattern an Ingress Controller
+# replaces NodePort with -- one shared IP/port (the controller's) fronting
+# many Services by host/path, instead of one NodePort per Service.
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: dso202-assignment-02
+  labels:
+    app: task-tracker
+    tier: frontend
+spec:
+  type: ClusterIP
+  selector:
+    app: task-tracker
+    tier: frontend
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

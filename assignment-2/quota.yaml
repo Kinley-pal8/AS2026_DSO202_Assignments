@@ -1,0 +1,41 @@
+# Same governance pattern as Assignment 1 (Unit I, Task 6), carried over
+# since it is still good practice; `pods` is raised because this namespace
+# also runs short-lived backup Jobs created by the DbBackup Operator.
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: task-tracker-limits
+  namespace: dso202-assignment-02
+  labels:
+    app: task-tracker
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: "500m"
+        memory: "512Mi"
+      defaultRequest:
+        cpu: "100m"
+        memory: "128Mi"
+      min:
+        cpu: "50m"
+        memory: "64Mi"
+      max:
+        cpu: "1"
+        memory: "1Gi"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: task-tracker-quota
+  namespace: dso202-assignment-02
+  labels:
+    app: task-tracker
+spec:
+  hard:
+    requests.cpu: "1"
+    requests.memory: "1Gi"
+    limits.cpu: "3"
+    limits.memory: "2Gi"
+    pods: "20"                   # 3 app tiers + operator manager + backup Job churn
+    persistentvolumeclaims: "2"  # the StatefulSet's volumeClaimTemplate claims one
